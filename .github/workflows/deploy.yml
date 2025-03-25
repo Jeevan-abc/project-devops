@@ -2,7 +2,7 @@ name: Deploy MERN Stack Application
 
 on:
   push:
-    branches: 
+    branches:
       - main
 
 jobs:
@@ -23,6 +23,7 @@ jobs:
           cd client
           npm install
           npm run build
+          mv dist build  # Rename 'dist' to 'build'
           ls -la build  # Verify build output
         
       - name: Install Backend Dependencies
@@ -120,6 +121,7 @@ jobs:
             cd ../client
             npm install
             npm run build
+            mv dist build  # Rename 'dist' to 'build'
             # Check if build succeeded
             if [ ! -f "build/index.html" ]; then
               echo "Frontend build failed: build/index.html not found"
