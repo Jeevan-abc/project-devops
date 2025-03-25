@@ -23,8 +23,7 @@ jobs:
           cd client
           npm install
           npm run build
-          mv dist build  # Rename 'dist' to 'build'
-          ls -la build  # Verify build output
+          ls -la dist  # Verify build output
         
       - name: Install Backend Dependencies
         run: |
@@ -129,13 +128,13 @@ jobs:
             cd ../client
             npm install || (echo "Client npm install failed" && exit 1)
             npm run build || (echo "Client build failed" && exit 1)
-            mv dist build  # Rename 'dist' to 'build'
+            # Removed: mv dist build
             # Check if build succeeded
-            if [ ! -f "build/index.html" ]; then
-              echo "Frontend build failed: build/index.html not found"
+            if [ ! -f "dist/index.html" ]; then
+              echo "Frontend build failed: dist/index.html not found"
               exit 1
             fi
-            ls -la build  # Debug build output
+            ls -la dist  # Debug build output
             cd ..
             pm2 restart mern-app || pm2 start server/server.js --name mern-app
             pm2 save
