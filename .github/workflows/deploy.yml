@@ -71,12 +71,10 @@ jobs:
             
             echo "New droplet created with IP: $DROPLET_IP"
           else
-            # Use existing droplet's IP
             DROPLET_IP=$(echo "$DROPLET_INFO" | jq -r '.droplets[0].networks.v4[0].ip_address')
             echo "Using existing droplet with IP: $DROPLET_IP"
           fi
           
-          # Set droplet IP for subsequent steps
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
 
       # Deploy to DigitalOcean Droplet
@@ -86,46 +84,30 @@ jobs:
           host: ${{ env.DROPLET_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22  # Explicitly set default SSH port
+          debug: true  # Enable debug output for troubleshooting
           script: |
             # Update system and install dependencies
             apt update && apt install -y git nodejs npm
-
-            # Install PM2 globally
             npm install -g pm2
-
-            # Clone or update repository
             if [ ! -d "/root/mern-app" ]; then
               git clone https://github.com/Jeevan-abc/project-devops /root/mern-app
             fi
-
-            # Navigate to project directory
             cd /root/mern-app
-
-            # Pull latest changes
             git fetch origin
             git reset --hard origin/main
-
-            # Install backend dependencies
             cd server
             npm install
-
-            # Install and build frontend
             cd ../client
             npm install
             npm run build
-
-            # Return to project root
             cd ..
-
-            # Start or restart application with PM2
             pm2 restart mern-app || pm2 start server/server.js --name mern-app
-
-            # Ensure PM2 starts on system reboot
             pm2 startup
             pm2 save
 
-      # Optional: Health check after deployment
+      # Verify Deployment
       - name: Verify Deployment
         run: |
-          sleep 30  # Wait for application to start
+          sleep 30
           curl -f http://${{ env.DROPLET_IP }}:3000 || exit 1
