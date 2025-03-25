@@ -23,6 +23,7 @@ jobs:
           cd client
           npm install
           npm run build
+          ls -la build  # Verify build output
         
       - name: Install Backend Dependencies
         run: |
@@ -96,9 +97,18 @@ jobs:
           timeout: 60s
           debug: true
           script: |
-            apt update && apt install -y git nodejs npm
+            # Install Node.js 18
+            apt update
+            apt install -y curl
+            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+            apt install -y nodejs
+            node --version
+            npm --version
+
+            # Install dependencies and deploy
+            apt install -y git
             npm install -g pm2
-            ufw allow 5000  # Changed to port 5000
+            ufw allow 5000
             if [ ! -d "/root/mern-app" ]; then
               git clone https://github.com/Jeevan-abc/project-devops /root/mern-app
             fi
@@ -110,6 +120,12 @@ jobs:
             cd ../client
             npm install
             npm run build
+            # Check if build succeeded
+            if [ ! -f "build/index.html" ]; then
+              echo "Frontend build failed: build/index.html not found"
+              exit 1
+            fi
+            ls -la build  # Debug build output
             cd ..
             pm2 restart mern-app || pm2 start server/server.js --name mern-app
             pm2 save
@@ -121,4 +137,4 @@ jobs:
       - name: Verify Deployment
         run: |
           sleep 60
-          curl -f http://${{ env.DROPLET_IP }}:5000 || exit 1  # Changed to port 5000
+          curl -f http://${{ env.DROPLET_IP }}:5000 || exit 1
