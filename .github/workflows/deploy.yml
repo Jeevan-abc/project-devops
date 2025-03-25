@@ -105,16 +105,18 @@ jobs:
             apt remove -y nodejs npm libnode-dev || true
             apt autoremove -y
             apt autoclean
+            dpkg --configure -a
+            apt install -f
             # Install Node.js 18
             curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-            apt install -y nodejs
+            apt install -y nodejs || (echo "Node.js installation failed" && exit 1)
             # Verify installation
-            node --version
-            npm --version
+            node --version || (echo "Node.js not installed" && exit 1)
+            npm --version || (echo "npm not installed" && exit 1)
 
             # Install dependencies and deploy
             apt install -y git
-            npm install -g pm2
+            npm install -g pm2 || (echo "Failed to install pm2" && exit 1)
             ufw allow 5000
             if [ ! -d "/root/mern-app" ]; then
               git clone https://github.com/Jeevan-abc/project-devops /root/mern-app
@@ -123,10 +125,10 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             cd server
-            npm install
+            npm install || (echo "Server npm install failed" && exit 1)
             cd ../client
-            npm install
-            npm run build
+            npm install || (echo "Client npm install failed" && exit 1)
+            npm run build || (echo "Client build failed" && exit 1)
             mv dist build  # Rename 'dist' to 'build'
             # Check if build succeeded
             if [ ! -f "build/index.html" ]; then
