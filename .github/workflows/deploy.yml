@@ -2,7 +2,7 @@ name: Deploy MERN Stack Application
 
 on:
   push:
-    branches:
+    branches: 
       - main
 
 jobs:
