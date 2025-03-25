@@ -1,4 +1,4 @@
-name: Deploy MERN to DigitalOcean
+name: Deploy MERN Stack Application
 
 on:
   push:
@@ -8,65 +8,100 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repository
+      # Checkout the repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Check or Create Droplet
-        id: droplet
+      # Setup Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # Install and build frontend
+      - name: Install and Build Frontend
+        run: |
+          cd client
+          npm install
+          npm run build
+        
+      # Install backend dependencies
+      - name: Install Backend Dependencies
+        run: |
+          cd server
+          npm install
+
+      # Check or Create DigitalOcean Droplet
+      - name: Manage DigitalOcean Droplet
+        id: create-droplet
         env:
           DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
           SSH_FINGERPRINT: ${{ secrets.SSH_PUBLIC_KEY_FINGERPRINT }}
         run: |
+          # Check existing droplet
           DROPLET_INFO=$(curl -s -X GET "https://api.digitalocean.com/v2/droplets?name=mern-droplet" \
             -H "Authorization: Bearer $DO_API_TOKEN" \
             -H "Content-Type: application/json")
+          
           DROPLET_COUNT=$(echo "$DROPLET_INFO" | jq '.droplets | length')
+          
           if [ "$DROPLET_COUNT" -eq 0 ]; then
-            echo "No Droplet found. Creating 'mern-droplet'..."
+            echo "Creating new droplet..."
             CREATE_RESPONSE=$(curl -s -X POST "https://api.digitalocean.com/v2/droplets" \
               -H "Authorization: Bearer $DO_API_TOKEN" \
               -H "Content-Type: application/json" \
               -d "{\"name\": \"mern-droplet\", \"region\": \"nyc3\", \"size\": \"s-1vcpu-1gb\", \"image\": \"ubuntu-22-04-x64\", \"ssh_keys\": [\"$SSH_FINGERPRINT\"], \"backups\": false, \"ipv6\": false, \"monitoring\": true}")
+            
             DROPLET_ID=$(echo "$CREATE_RESPONSE" | jq -r '.droplet.id')
+            
+            # Wait for droplet to be active
             for i in {1..30}; do
               STATUS=$(curl -s -X GET "https://api.digitalocean.com/v2/droplets/$DROPLET_ID" \
                 -H "Authorization: Bearer $DO_API_TOKEN" | jq -r '.droplet.status')
               if [ "$STATUS" = "active" ]; then break; fi
-              echo "Waiting... ($i/30)"
+              echo "Waiting for droplet to be active... ($i/30)"
               sleep 10
             done
+            
+            # Get droplet IP
             DROPLET_IP=$(curl -s -X GET "https://api.digitalocean.com/v2/droplets/$DROPLET_ID" \
               -H "Authorization: Bearer $DO_API_TOKEN" | jq -r '.droplet.networks.v4[0].ip_address')
-            echo "Droplet created: $DROPLET_IP"
+            
+            echo "New droplet created with IP: $DROPLET_IP"
           else
+            # Use existing droplet's IP
             DROPLET_IP=$(echo "$DROPLET_INFO" | jq -r '.droplets[0].networks.v4[0].ip_address')
-            echo "Droplet exists: $DROPLET_IP"
+            echo "Using existing droplet with IP: $DROPLET_IP"
           fi
+          
+          # Set droplet IP for subsequent steps
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
 
-      - name: Deploy to DigitalOcean Droplet
+      # Deploy to DigitalOcean Droplet
+      - name: Deploy to Droplet
         uses: appleboy/ssh-action@master
         with:
           host: ${{ env.DROPLET_IP }}
           username: root
-          key: ${{ secrets.SSH_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Ensure git, nodejs, and npm are installed
+            # Update system and install dependencies
             apt update && apt install -y git nodejs npm
 
             # Install PM2 globally
             npm install -g pm2
 
-            # Clone or update the repository
+            # Clone or update repository
             if [ ! -d "/root/mern-app" ]; then
               git clone https://github.com/Jeevan-abc/project-devops /root/mern-app
             fi
 
-            # Navigate to the project directory
+            # Navigate to project directory
             cd /root/mern-app
 
-            # Pull the latest changes
+            # Pull latest changes
             git fetch origin
             git reset --hard origin/main
 
@@ -74,15 +109,23 @@ jobs:
             cd server
             npm install
 
-            # Install frontend dependencies and build
+            # Install and build frontend
             cd ../client
             npm install
             npm run build
 
-            # Start or restart the application with PM2
+            # Return to project root
             cd ..
+
+            # Start or restart application with PM2
             pm2 restart mern-app || pm2 start server/server.js --name mern-app
 
             # Ensure PM2 starts on system reboot
             pm2 startup
             pm2 save
+
+      # Optional: Health check after deployment
+      - name: Verify Deployment
+        run: |
+          sleep 30  # Wait for application to start
+          curl -f http://${{ env.DROPLET_IP }}:3000 || exit 1
