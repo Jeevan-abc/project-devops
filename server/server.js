@@ -8,6 +8,8 @@ const port = process.env.PORT || 5000;
 // Serve static files from the React frontend build
 app.use(express.static(path.join(__dirname, '../client/build')));
 
+
+app.use(cors());
 // API route to send JSON response
 app.get('/api/data', (req, res) => {
   res.json({ message: 'Hello from backend!' });
