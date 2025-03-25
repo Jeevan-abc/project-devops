@@ -49,12 +49,21 @@ jobs:
               -d "{\"name\": \"mern-droplet\", \"region\": \"nyc3\", \"size\": \"s-1vcpu-1gb\", \"image\": \"ubuntu-22-04-x64\", \"ssh_keys\": [\"$SSH_FINGERPRINT\"], \"backups\": false, \"ipv6\": false, \"monitoring\": true}")
             
             DROPLET_ID=$(echo "$CREATE_RESPONSE" | jq -r '.droplet.id')
+            if [ -z "$DROPLET_ID" ]; then
+              echo "Error: Droplet creation failed"
+              echo "$CREATE_RESPONSE"
+              exit 1
+            fi
             
-            for i in {1..30}; do
+            for i in {1..60}; do
               STATUS=$(curl -s -X GET "https://api.digitalocean.com/v2/droplets/$DROPLET_ID" \
                 -H "Authorization: Bearer $DO_API_TOKEN" | jq -r '.droplet.status')
-              if [ "$STATUS" = "active" ]; then break; fi
-              echo "Waiting for droplet to be active... ($i/30)"
+              if [ "$STATUS" = "active" ]; then
+                DROPLET_IP=$(curl -s -X GET "https://api.digitalocean.com/v2/droplets/$DROPLET_ID" \
+                  -H "Authorization: Bearer $DO_API_TOKEN" | jq -r '.droplet.networks.v4[0].ip_address')
+                nc -w 5 -z $DROPLET_IP 22 && break
+              fi
+              echo "Waiting for droplet to be active and SSH ready... ($i/60)"
               sleep 10
             done
             
@@ -84,10 +93,12 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          timeout: 60s
           debug: true
           script: |
             apt update && apt install -y git nodejs npm
             npm install -g pm2
+            ufw allow 5000  # Changed to port 5000
             if [ ! -d "/root/mern-app" ]; then
               git clone https://github.com/Jeevan-abc/project-devops /root/mern-app
             fi
@@ -101,10 +112,13 @@ jobs:
             npm run build
             cd ..
             pm2 restart mern-app || pm2 start server/server.js --name mern-app
-            pm2 startup
             pm2 save
+            pm2 startup
+            pm2 list
+            sleep 10
+            curl -f http://localhost:5000 || (pm2 logs mern-app --lines 10 && exit 1)
 
       - name: Verify Deployment
         run: |
-          sleep 30
-          curl -f http://${{ env.DROPLET_IP }}:3000 || exit 1
+          sleep 60
+          curl -f http://${{ env.DROPLET_IP }}:5000 || exit 1  # Changed to port 5000
