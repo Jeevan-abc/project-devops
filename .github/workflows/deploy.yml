@@ -101,8 +101,14 @@ jobs:
             # Install Node.js 18
             apt update
             apt install -y curl
+            # Remove conflicting packages and clean up
+            apt remove -y nodejs npm libnode-dev || true
+            apt autoremove -y
+            apt autoclean
+            # Install Node.js 18
             curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
             apt install -y nodejs
+            # Verify installation
             node --version
             npm --version
 
