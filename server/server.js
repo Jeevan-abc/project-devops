@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(express.static(path.join(__dirname, '../client/build')));
+app.use(express.static(path.join(__dirname, '../client/dist'))); // Changed to 'dist'
 app.use(cors());
 
 app.get('/api/data', (req, res) => {
@@ -18,7 +18,7 @@ app.get('/api/data', (req, res) => {
 });
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  res.sendFile(path.join(__dirname, '../client/dist', 'index.html')); // Changed to 'dist'
 });
 
 app.listen(port, '0.0.0.0', () => {
