@@ -12,9 +12,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y curl jq
-
       - name: Check or Create Droplet
         id: droplet
         env:
@@ -48,22 +45,6 @@ jobs:
           fi
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install backend dependencies
-        run: |
-          cd server
-          npm install
-
-      - name: Install frontend dependencies and build
-        run: |
-          cd client
-          npm install
-          npm run build
-
       - name: Deploy to DigitalOcean Droplet
         uses: appleboy/ssh-action@master
         with:
@@ -71,16 +52,37 @@ jobs:
           username: root
           key: ${{ secrets.SSH_KEY }}
           script: |
-            apt update && apt install -y nodejs npm git
+            # Ensure git, nodejs, and npm are installed
+            apt update && apt install -y git nodejs npm
+
+            # Install PM2 globally
             npm install -g pm2
-            if [ ! -d "/root/mern-cicd-digitalocean" ]; then
-              git clone https://github.com/Jeevan-abc/project-devops /root/mern-cicd-digitalocean
+
+            # Clone or update the repository
+            if [ ! -d "/root/mern-app" ]; then
+              git clone https://github.com/Jeevan-abc/project-devops /root/mern-app
             fi
-            cd /root/mern-cicd-digitalocean
-            git pull origin main
+
+            # Navigate to the project directory
+            cd /root/mern-app
+
+            # Pull the latest changes
+            git fetch origin
+            git reset --hard origin/main
+
+            # Install backend dependencies
             cd server
             npm install
-            pm2 restart mern-app || pm2 start server.js --name mern-app
-            echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDD0NWYSpt4d6jz8WIfnKxBmC/uWz/nv6wOXtLaU70o6fapJ00eCx+pgiQ+XuJWBQIjjHoy0n4xkgKvGOklcaJlpH2uLo+2Te19+Rs57gTTEN6PnaAhTxGDP9DyxkNoV7A9OTsomkmZ1U2lEF8UTyAO95/nAFTMyie+W3gJNOJGc4Avh3udowqIL0HLp0OBrx3E1jtMKvCcxQJ7xMjFfXddQvD/aIkhC9bnpA+XTmeMCo10ADPtIDd3Ru1EFjXRmJwm7ycQ/lT+q9kDcwx2MPt2JzYCMW/25KGWDVrbP0QSsrc6NNFlNt5XBBBTtIwB6qBpxrS1DBvoKHw9QLObROrR/EiL13/B87KjJ34oEnpjFkRsQNfbjMjJUsGD7bh0XpvbwfOR+8s7+TlnFrHUXg9H9n3Ga5i2olIXx2l3egBut+3SK665ruDDf66m/xAhiUijnCGLW8q+vk4X7FqOHJzK5JTkapxxx6E3glg+MI7iyYE/tY+PXCe0Xjh0n9RZIvqGGLRQSKJeOzQCnGN+MRDEHT/d9KINIXogxgYWNTZZ8g9Xy3xqXt4gLspPlwjMsUCCx2/elYD4FK15k4SRz6fe8qXEyno5ZI2VpmVz5C7DjHb5CWmgkUqp6BqA4lXjx64o2xd1gAJVrlZl058q/aNlruuS1GGbZDPcg+VAbf0ZjQ== jeevan.raj@abc.courses" > /root/.ssh/authorized_keys
-            sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-            systemctl restart sshd
+
+            # Install frontend dependencies and build
+            cd ../client
+            npm install
+            npm run build
+
+            # Start or restart the application with PM2
+            cd ..
+            pm2 restart mern-app || pm2 start server/server.js --name mern-app
+
+            # Ensure PM2 starts on system reboot
+            pm2 startup
+            pm2 save
