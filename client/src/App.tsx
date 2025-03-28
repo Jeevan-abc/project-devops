@@ -27,6 +27,7 @@ function App() {
     <button onClick={fetchData}>Get Data</button>
     {data && (
       <div>
+        <p>Devops project</p>
         <p>{data.message}</p>
         <p>{data.data}</p>
       </div>
